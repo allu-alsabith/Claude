@@ -1,0 +1,80 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net - Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Diagnostic connection test path
+    match /test/{testId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // User profile collection
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+
+      function isValidUser(data) {
+        return data.id is string && data.id.size() <= 128 &&
+               data.email is string && data.email.size() <= 256 &&
+               (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 128)) &&
+               (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 512));
+      }
+
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming()) && incoming().id == userId;
+      allow update: if isOwner(userId) && isValidUser(incoming()) && incoming().id == existing().id;
+      allow delete: if isOwner(userId);
+
+      // User Chats subcollection
+      match /chats/{chatId} {
+        function isValidChat(data) {
+          return data.id is string && data.id.size() <= 128 &&
+                 data.userId is string && data.userId.size() <= 128 &&
+                 data.title is string && data.title.size() <= 500 &&
+                 data.model is string && data.model.size() <= 64 &&
+                 (!('pinned' in data) || data.pinned is bool) &&
+                 (!('isEncrypted' in data) || data.isEncrypted is bool) &&
+                 (!('encryptedData' in data) || (data.encryptedData is string && data.encryptedData.size() <= 1000000)) &&
+                 (!('preview' in data) || (data.preview is string && data.preview.size() <= 500)) &&
+                 (!('messageCount' in data) || (data.messageCount is number && data.messageCount >= 0));
+        }
+
+        allow get: if isOwner(userId) && isValidId(chatId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(chatId) &&
+                         isValidChat(incoming()) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().id == chatId;
+        allow update: if isOwner(userId) && isValidId(chatId) &&
+                         isValidChat(incoming()) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id;
+        allow delete: if isOwner(userId) && isValidId(chatId);
+      }
+    }
+  }
+}

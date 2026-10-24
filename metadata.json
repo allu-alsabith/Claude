@@ -1,0 +1,6 @@
+{
+  "name": "Claude Fable 5.1 & LLM Studio",
+  "description": "Next-generation Claude interface with Claude Fable 5.1, top Gemini models, interactive artifacts workspace, end-to-end encrypted chat vault, and multimodal intelligence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
